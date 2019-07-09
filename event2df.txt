@@ -1,0 +1,17 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1671
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww10800\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 EventDF.2 <- within(EventDF, rm('player.id','position.id','pass.recipient.id','pass.height.id','pass.body_part.id','pass.type.id','pass.outcome.id','ball_receipt.outcome.id','dribble.outcome.id','shot.body_part.id',\
+                     'shot.type.id','shot.outcome.id','goalkeeper.technique.id','goalkeeper.position.id',\
+                     'goalkeeper.body_part.id','goalkeeper.outcome.id','goalkeeper.type.id',\
+                     'interception.outcome.id','foul_committed.card.id','foul_committed.type.id', \
+                     'duel.type.id','duel.outcome.id','50_50.outcome.id','substitution.outcome.id',\
+                     'substitution.replacement.id','bad_behaviour.card.id'))\
+\
+\
+\
+firstMatch <- EventDF.2[1:2720,]}
