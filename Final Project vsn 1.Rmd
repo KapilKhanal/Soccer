@@ -1,0 +1,93 @@
+---
+title: "Final Project"
+author: "Jeremy Sanchez"
+date: "7/8/2019"
+output: html_document
+---
+#Redesigning the Penalty Box
+- expected goal model
+    counterfactual
+      regular shot vs penalty ones
+    may also take into account passing to another player. maybe a later step.
+- pentalty events
+
+STATSBOMB event data, I can see that, of course.
+expected goals modeled for all of that data. 
+there is no shot taken in penalty events
+  1. build our own expected goals model
+     2. But they are from different games, which would explain the differing lists.
+     So we will separate the data, so you already have a leg up on this.
+        grid of min and max expected goals
+View(info)  
+
+
+# 'Evaluating' Passing 
+STATSBOMB data. 
+  location and who would intended to.
+1. could identify who is expected target of pass as project
+2. model for pass receiver  
+   - negative sums?
+   - may use MLSA 2018 data
+
+  -pass completion model
+
+3. Place a value on a pass (expected goals/pass)
+take from beginning (e goals), or end (e goals)
+STATSBOMB 
+  track sequence of passes and say:
+    pass 1 to pass 2 (shot within 5 seconds?)
+    pass 2 to pass 3 (shot within 5 seconds?)
+    pass 3 to pass 4
+    pass 4 to pass 5 (no shot)
+    
+classification or expected goals of shot to take
+
+Previous Literature: Pass Risk-Reward
+
+Use a weighting to help with pass sequence-ing.
+
+## Expected Goals Per Pass
+Step 1: Getting Data the way we want it.
+```{r}
+View(head(EventDF))
+View(head(firstMatch, n = 16L))
+
+cbind(firstMatch$id, firstMatch$related_events)
+
+EventDF.2 <- within(EventDF, rm('player.id','position.id','pass.recipient.id','pass.height.id','pass.body_part.id','pass.type.id','pass.outcome.id','ball_receipt.outcome.id','dribble.outcome.id','shot.body_part.id',
+                     'shot.type.id','shot.outcome.id','goalkeeper.technique.id','goalkeeper.position.id',
+                     'goalkeeper.body_part.id','goalkeeper.outcome.id','goalkeeper.type.id',
+                     'interception.outcome.id','foul_committed.card.id','foul_committed.type.id', 
+                     'duel.type.id','duel.outcome.id','50_50.outcome.id','substitution.outcome.id',
+                     'substitution.replacement.id','bad_behaviour.card.id'))
+
+#split into sequences of shots
+library(tidyverse)
+EventDF.2 %>% group_by(., possession) %>% slice()
+
+#split into sequences 
+sequences <- split(firstMatch, firstMatch$possession)
+
+#Version 2.
+firstMatch %>% filter(type.name == "Pass" | type.name == "Shot") %>% select(possession,type.name,possession_team.name, location, pass.end_location, duration,shot.statsbomb_xg, minute, second) -> passes
+
+passes %>% group_by(possession) %>% mutate(length = n()) -> passes
+View(head(passes, n = 40L))
+
+
+
+
+
+```
+## RESEARCH QUESTIONS:
+1. What can we summarize from a sequence of passes?
+2. What are we expected goal per pass?
+3. 
+
+```{r}
+
+```
+    
+  
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
