@@ -1,0 +1,219 @@
+---
+title: "Final Project"
+author: "Kapil,Jeremy,Nathan"
+date: "7/8/2019"
+output: html_document
+---
+#Redesigning the Penalty Box
+- expected goal model
+    counterfactual
+      regular shot vs penalty ones
+    may also take into account passing to another player. maybe a later step.
+- pentalty events
+
+STATSBOMB event data, I can see that, of course.
+expected goals modeled for all of that data. 
+there is no shot taken in penalty events
+  1. build our own expected goals model
+     2. But they are from different games, which would explain the differing lists.
+     So we will separate the data, so you already have a leg up on this.
+        grid of min and max expected goals
+View(info)  
+
+
+# 'Evaluating' Passing 
+STATSBOMB data. 
+  location and who would intended to.
+1. could identify who is expected target of pass as project
+2. model for pass receiver  
+   - negative sums?
+   - may use MLSA 2018 data
+
+  -pass completion model
+
+3. Place a value on a pass (expected goals/pass)
+take from beginning (e goals), or end (e goals)
+STATSBOMB 
+  track sequence of passes and say:
+    pass 1 to pass 2 (shot within 5 seconds?)
+    pass 2 to pass 3 (shot within 5 seconds?)
+    pass 3 to pass 4
+    pass 4 to pass 5 (no shot)
+    
+classification or expected goals of shot to take
+
+Previous Literature: Pass Risk-Reward
+
+Use a weighting to help with pass sequence-ing.
+
+## Expected Goals Per Pass
+Step 1: Getting Data the way we want it. - Looking at one match. 
+```{r}
+View(head(EventDF))
+View(head(firstMatch, n = 16L))
+
+cbind(firstMatch$id, firstMatch$related_events)
+
+EventDF.2 <- within(EventDF, rm('player.id','position.id','pass.recipient.id','pass.height.id','pass.body_part.id','pass.type.id','pass.outcome.id','ball_receipt.outcome.id','dribble.outcome.id','shot.body_part.id',
+                     'shot.type.id','shot.outcome.id','goalkeeper.technique.id','goalkeeper.position.id',
+                     'goalkeeper.body_part.id','goalkeeper.outcome.id','goalkeeper.type.id',
+                     'interception.outcome.id','foul_committed.card.id','foul_committed.type.id', 
+                     'duel.type.id','duel.outcome.id','50_50.outcome.id','substitution.outcome.id',
+                     'substitution.replacement.id','bad_behaviour.card.id'))
+
+
+library(tidyverse)
+EventDF.2 %>% group_by(., possession) %>% slice()
+
+firstMatch <- EventDF.2[1:2720,] 
+View(head(firstMatch,n = 40L))
+
+#Version 2.
+firstMatch %>% filter(type.name == "Pass" | type.name == "Shot") %>% select(possession,type.name, minute,second, duration, possession_team.name, location, pass.end_location,shot.end_location, shot.statsbomb_xg) -> passes
+
+passes %>% group_by(possession) %>% mutate(length = n()) -> passes
+View(head(passes, n = 40L))
+
+#initating x and y location, x_end and y_end location
+passes$x_location = 1:978
+passes$y_location = 1:978
+passes$x_endlocation = 1:978
+passes$y_endlocation = 1:978
+
+
+
+#replacing x and y location correctly with  for loop 
+for(ii in 1:nrow(passes)) {
+  passes$x_location[ii] = passes$location[[ii]][1]
+  passes$y_location[ii] = passes$location[[ii]][2]
+}
+
+passes$x_endlocation = 1:978
+passes$y_endlocation = 1:978
+
+#replacing x and y end locations correctly with for loop
+for(jj in 1:nrow(passes)) {
+  if(!is.null(passes$pass.end_location[[jj]])) {
+    passes$x_endlocation[[jj]] = passes$pass.end_location[[jj]][1]
+    passes$y_endlocation[[jj]] = passes$pass.end_location[[jj]][2]
+  } else { #makes sure vector is filled whole way through without affecting position on field 
+    passes$x_endlocation[[jj]] = -99
+    passes$y_endlocation[[jj]] = -99
+  }
+}
+
+warnings()
+
+View(head(passes, n = 80L))
+
+#adding 0.0 xG to all passes not a shot
+passes$shot.statsbomb_xg<- ifelse(is.na(passes$shot.statsbomb_xg), 0, passes$shot.statsbomb_xg)
+
+passes %>% group_by(possession) %>% mutate()
+
+View(head(passes, n = 80L))
+
+```
+
+
+2. Reimagining problem using only those sequences leading to a shot.
+```{r}
+#attain only those sequences resulting in shots taken (using FirstMatch)
+
+firstMatch %>% filter(., type.name == "Shot") -> shotrows
+sequences <- shotrows$possession
+firstMatch %>% filter(.,possession %in% sequences) -> what.we.want
+View(head(what.we.want, n = 40L))
+
+# Further cleaning 
+
+what.we.want %>% filter(type.name == "Pass" | type.name == "Shot") %>% select(possession,type.name, minute,second, duration, possession_team.name, location, pass.end_location,shot.end_location, shot.statsbomb_xg) -> passes
+
+passes$shot.statsbomb_xg<- ifelse(is.na(passes$shot.statsbomb_xg), 0, passes$shot.statsbomb_xg)
+
+passes
+
+#initating x and y location, x_end and y_end location
+passes$x_location = 1:length(passes)
+passes$y_location = 1:length(passes)
+passes$x_endlocation = 1:length(passes)
+passes$y_endlocation = 1:length(passes)
+
+
+
+#replacing x and y location correctly with  for loop 
+for(ii in 1:nrow(passes)) {
+  passes$x_location[ii] = passes$location[[ii]][1]
+  passes$y_location[ii] = passes$location[[ii]][2]
+}
+
+passes$x_endlocation = 1:length(passes)
+passes$y_endlocation = 1:length(passes)
+
+#replacing x and y end locations correctly with for loop
+for(jj in 1:nrow(passes)) {
+  if(!is.null(passes$pass.end_location[[jj]])) {
+    passes$x_endlocation[[jj]] = passes$pass.end_location[[jj]][1]
+    passes$y_endlocation[[jj]] = passes$pass.end_location[[jj]][2]
+  } else { #makes sure vector is filled whole way through without affecting position on field 
+    passes$x_endlocation[[jj]] = -99
+    passes$y_endlocation[[jj]] = -99
+  }
+}
+
+
+
+
+
+
+
+```
+
+
+3. Do the same thing for entire data.
+
+```{r}
+
+library(tidyverse)
+
+matches <- split(EventDF.2, EventDF.2$possession)
+
+new_matches <- list()
+
+for (i in 1:length(matches)) {
+  
+matches[[i]] %>% filter(., type.name == "Shot") -> shotrows
+sequences <- shotrows$possession
+matches[[i]]<- matches[[i]] %>% filter(.,possession %in% sequences) 
+  
+}
+
+View(tail(new_matches[[1]]))
+
+View(matches[[2]])
+
+
+
+```
+But we see that shot is not always the end of a possession. 
+4. addressing the problem that not all possessions end in a shot: grouping by end of shot, with time constraint. 
+
+```{r}
+#creates an index I can work with
+EventDF.2$trueindex <- 1:679315
+library(tidyverse)
+
+EventDF.2 %>% filter(., type.name == "Shot") -> shotrows
+shotrows
+shots.index <- shotrows$trueindex
+
+sequences <- slice 
+
+
+
+
+```
+    
+  
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
