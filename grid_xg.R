@@ -4,7 +4,9 @@
 # -----------------------------------------------------------------------------
 library(tidyverse)
 
-df <- read.csv("soccer.csv") 
+df <- read_csv("soccer.csv") 
+train <- read_csv("train.csv")
+test <- read_csv("test.csv")
 
 # x.location ranges from 1 to 121 (120 long)
 # y.location ranges from 1 to 81 (80 long)
@@ -14,9 +16,19 @@ Y_FIELD_LENGTH <- 80
 # Almost no data at x = 121 and y = 81, these are a pain for round numbers...
 # so we just make them 120 and 80 respectively.
 df$x.location[which(df$x.location == 121)] <- 120
-df$x.location[which(df$y.location == 81)] <- 80
-df$x.location[which(df$end.x.location == 81)] <- 120
-df$x.location[which(df$end.y.location == 81)] <- 80
+df$y.location[which(df$y.location == 81)] <- 80
+df$end.x.location[which(df$end.x.location == 121)] <- 120
+df$end.y.location[which(df$end.y.location == 81)] <- 80
+
+train$x.location[which(train$x.location == 121)] <- 120
+train$y.location[which(train$y.location == 81)] <- 80
+train$end.x.location[which(train$end.x.location == 121)] <- 120
+train$end.y.location[which(train$end.y.location == 81)] <- 80
+
+test$x.location[which(test$x.location == 121)] <- 120
+test$y.location[which(test$y.location == 81)] <- 80
+test$end.x.location[which(test$end.x.location == 121)] <- 120
+test$end.y.location[which(test$end.y.location == 81)] <- 80
 
 
 # -----------------------------------------------------------------------------
@@ -82,6 +94,55 @@ get.pass.matrix <- function(data, grid_width, grid_height) {
 # Tune and test
 # -----------------------------------------------------------------------------
 
+# Split the training data into a true training set and a validation set
+set.seed(72214)
+
+train_perc <- 0.8
+values <- sample(1:nrow(train), train_perc * nrow(train), replace = FALSE)
+true.train <- train[values,]
+validation <- train[-values,]
+
+# Function to evaluate MSE of a trained matrix
+get.mat.mse <- function(grid_height, grid_width, train.data, test.data)  {
+    mat <- get.pass.matrix(train.data, grid_height, grid_width)
+    temp <- test.data %>% 
+        mutate(start.cell = get.grid.number(grid_height, grid_width,
+                                            x.location, y.location),
+               end.cell = get.grid.number(grid_height, grid_width, 
+                                          end.x.location, end.y.location))
+    temp$pred <- NA
+    for (i in 1:nrow(temp)) {
+        temp$pred[i] <- mat[temp$start.cell[i], temp$end.cell[i]]
+    }
+
+    return(mean((temp$pred - temp$shot.statsbomb_xg)^2))
+}
+
+# Tune grid dimensions
+x.sizes <- c(8, 10, 12, 15, 20, 24, 30, 40)
+y.sizes <- c(8, 10, 16, 20, 40)
+
+mse.summary <- data.frame(x.size = NA, y.size = NA, mse = NA)
+for (x.size in x.sizes) {
+    for (y.size in y.sizes) {
+        mse <- get.mat.mse(x.size, y.size, true.train, validation)
+        # Uncomment for verbose output
+        # cat("Grid size: ", x.size, "x", y.size, "\n",
+        #     "MSE: ", mse, "\n\n")
+        mse.summary <- rbind(mse.summary, c(x.size, y.size, mse))
+    }
+}
+mse.summary <- mse.summary %>% slice(-1)
+View(mse.summary %>% arrange(desc(mse)))
+
+
 # -----------------------------------------------------------------------------
 # Results
 # -----------------------------------------------------------------------------
+best <- mse.summary[which.min(mse.summary$mse),]
+View(best)
+
+mat.final <- get.pass.matrix(train, best$x.size, best$y.size)
+get.mat.mse(best$x.size, best$y.size, train, test)
+
+# I get a final output of 0.002916491 on a 15 x 16 grid
