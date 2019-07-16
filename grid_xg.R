@@ -102,6 +102,8 @@ values <- sample(1:nrow(train), train_perc * nrow(train), replace = FALSE)
 true.train <- train[values,]
 validation <- train[-values,]
 
+
+
 # Function to evaluate MSE of a trained matrix
 get.mat.mse <- function(grid_height, grid_width, train.data, test.data)  {
     mat <- get.pass.matrix(train.data, grid_height, grid_width)
@@ -117,6 +119,17 @@ get.mat.mse <- function(grid_height, grid_width, train.data, test.data)  {
 
     return(mean((temp$pred - temp$shot.statsbomb_xg)^2))
 }
+
+#Added the function to get the "From" and "To" for each pass...determined by the validation in the box model
+getFromTo<-function(grid_height,grid_width,data){
+  data_with_box<-data%>%mutate(from = get.grid.number(grid_height,grid_width,data$x.location,data$y.location), 
+                      to = get.grid.number(grid_height,grid_width,data$end.x.location,data$end.y.location)
+                      )
+  return (data_with_box)
+}
+
+#Example
+#data_with_box<-getFromTo(15,16,train)
 
 # Tune grid dimensions
 x.sizes <- c(8, 10, 12, 15, 20, 24, 30, 40)
