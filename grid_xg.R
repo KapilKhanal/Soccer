@@ -4,7 +4,7 @@
 # -----------------------------------------------------------------------------
 library(tidyverse)
 
-df <- read.csv("data.csv")
+df <- read.csv("soccer.csv") 
 
 # x.location ranges from 1 to 121 (120 long)
 # y.location ranges from 1 to 81 (80 long)
@@ -47,16 +47,16 @@ get.pass.matrix <- function(data, grid_width, grid_height) {
     # Start location is the rows of the matrix, end location is the columns
     for (i in 1:nrow(data)) {
         cell.start <- get.grid.number(grid_width, grid_height,
-                                      df$x.location[i], df$y.location[i])
+                                      data$x.location[i], data$y.location[i])
         cell.end  <- get.grid.number(grid_width, grid_height,
-                                     df$end.x.location[i], 
-                                     df$end.y.location[i])
+                                     data$end.x.location[i], 
+                                     data$end.y.location[i])
         if (is.na(mat[cell.start, cell.end])) {
-            mat[cell.start, cell.end] <- df$shot.statsbomb_xg[i]
+            mat[cell.start, cell.end] <- data$shot.statsbomb_xg[i]
             counts[cell.start, cell.end] <- 1
         } else {
             n <- counts[cell.start, cell.end]
-            xg <- df$shot.statsbomb_xg[i]
+            xg <- data$shot.statsbomb_xg[i]
             
             # Average of a stream is (current * n + new) / (n + 1)
             mat[cell.start, cell.end] <- 
@@ -77,10 +77,6 @@ get.pass.matrix <- function(data, grid_width, grid_height) {
 
 # Example usage:
 # mat <- get.pass.matrix(df %>% slice(1:10000), 40, 40)
-
-# -----------------------------------------------------------------------------
-# Train-validation-test split
-# -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
 # Tune and test
