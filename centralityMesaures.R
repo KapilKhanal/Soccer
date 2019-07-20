@@ -207,11 +207,38 @@ save(networkDF, file = "NetworkDF.RData")
 
 View(head(networkDF))
 
-networkDF<-networkDF %>% mutate(routes_first = map2(nodes_first,edges_first_two,~routes_tidy_wrapper),
-                     routes_second = map2(nodes_second,edges_second_two,~routes_tidy_wrapper))
+networkDF<-networkDF %>% mutate(routes_first = map2(nodes_first,edges_first_two,~routes_tidy_wrapper(.x,.y)),
+                     routes_second = map2(nodes_second,edges_second_two,~routes_tidy_wrapper(.x,.y)))
+View(head(networkDF))
 
+activate_edge_wrapper<-function(routes_tidy_df){  
+  routes_tidy_df<- routes_tidy_df %>% activate(edges) %>% arrange(desc(weights))
+  return(routes_tidy_df)
+}
+networkDF<-networkDF %>% mutate(routes_first = map(routes_first,activate_edge_wrapper),
+                                routes_second = map(routes_second,activate_edge_wrapper))
+#Adding weights
+add_weight_wrapper<-function(routes_tidy){
+  routes_tidy<-routes_tidy %>% activate(nodes) %>% mutate(centrality = centrality_authority(), pageRank = centrality_pagerank())
+  return (as_tibble(routes_tidy))
+ }
+networkDF<-networkDF %>% mutate(withWeight_first = map(routes_first,add_weight_wrapper),
+                                withWeight_second = map(routes_second,add_weight_wrapper))
 
+weightDF <- networkDF %>% select(-routes_first,-routes_second,-nodes_first,-nodes_second,-edges_first_two,-edges_second_two)
 
+save(weightDF,file = "WeightDF.RData")
+View(weightDF)
 
+match_wrapper<- function(df,m){
+  df<- df %>% mutate(match = m )
+  return (df)
+}
+weightDF2<- weightDF %>% mutate(match = map(withWeight_first,match,~match_wrapper(.x,.y)))
 
+weightDF_firstTeam <- weightDF %>% select(match,withWeight_first) %>% unnest()
+weightDF_secondTeam<-weightDF %>% select(match,withWeight_second) %>% unnest()
+
+DF_with_Weights<-rbind(weightDF_secondTeam)
+View(DF_with_Weights)
 
