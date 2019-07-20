@@ -68,11 +68,59 @@ View(head(passes_and_shots, 100))
 
 #run for entire dataset. 
 df.adjusted <- f(passes_and_shots)
+# --------------------------------------------------------------------------------------------------------------------------------
+# Give the negative of the shot chain expected goals to passes which lead to a shot within 3 events.
+# --------------------------------------------------------------------------------------------------------------------------------
+
+#order of possession which will be useful later
+df.adjusted %>% group_by(possession,match) %>% mutate(chain.length = seq(1:n())) -> df.adjusted
+#lead the chain length to start the order the event before possession change
+df.adjusted %>% group_by(match,possession) %>% mutate(shot.chain.length = lead(chain.length)) -> df.adjusted
+#give 1 to all NAs of lead
+df.adjusted$shot.chain.length = ifelse(is.na(df.adjusted$shot.chain.length), 1, df.adjusted$shot.chain.length)
+#events before a possession that are not shots (passes) are 1 and shots become .5
+df.adjusted$shot.chain.length = ifelse(df.adjusted$type.name == "Shot", .5, df.adjusted$shot.chain.length)
+#get rid of all other numbers in shot.chain.length except 1 and .5
+df.adjusted$shot.chain.length = ifelse(df.adjusted$shot.chain.length == 1 |df.adjusted$shot.chain.length == .5 ,
+                                       df.adjusted$shot.chain.length, 0)
+
+#lead the possession so that it starts the event before possession change
+df.adjusted$possession.lead <- lead(df.adjusted$possession, 1)
+
+#create a possession pass chain length counting backwards, derivative of length earlier 
+df.adjusted %>% group_by(possession.lead,match) %>% mutate(lead.chain.length = rev(seq(1:n())) ) -> df.adjusted
+
+#possession length is 0 if not an event before change of possession
+df.adjusted$lead.chain.length = ifelse(df.adjusted$shot.chain.length == 1 |df.adjusted$shot.chain.length == .5
+                                       ,df.adjusted$lead.chain.length , 0)
+
+#lead expected goals column this way xG of next shot will be on pass before change
+df.adjusted$shot.statsbomb_nxg <- lead(df.adjusted$shot.statsbomb_xg, 1)
+
+#lead pass.type.name         this way pass type of next pass will be on pass before change
+df.adjusted$lead_pass.type.name <- lead(df.adjusted$pass.type.name, 1)
+
+#if a pass and the pass chain length var is less than 4 (3 events in chain):
+#give the negative of the xG of the next shot. otherwise remain same.
+df.adjusted$shot.statsbomb_xg <- ifelse(df.adjusted$shot.chain.length == 1 & df.adjusted$lead.chain.length <= 4 &
+                                        !(df.adjusted$pass.type.name %in% c("Kick Off"))
+                                        ,-1*df.adjusted$shot.statsbomb_nxg, df.adjusted$shot.statsbomb_xg)
+
+
+# --------------------------------------------------------------------------------------------------------------------------------
+# Select Desired Variables and write to a new file. 
+# --------------------------------------------------------------------------------------------------------------------------------
+
+library(tidyverse)
 
 #name to a new file named soccer. 
-soccer <- df.adjusted %>% select(match, possession, type.name, possession_team.name, pass.angle, pass.length, pass.switch,
-                            pass.cross, duration, shot.statsbomb_xg,minute,second,position.name,pass.height.name,
-                            pass.body_part.name,pass.type.name,length,location,pass.end_location,shot.end_location)
+df.adjusted %>% select(match, possession, type.name, shot.statsbomb_xg, possession_team.name,position.name,player.name, 
+                       pass.recipient.name, pass.outcome.name, pass.angle, pass.length, pass.switch,
+                        pass.cross, duration, minute,second,position.name,pass.height.name, 
+                        pass.body_part.name,pass.type.name,location,length,pass.end_location,shot.end_location) -> soccer
+
+
+
 
 # --------------------------------------------------------------------------------------------------------------------------------
 # Create separate x and y location columns for both passes and shots. 
@@ -100,7 +148,6 @@ true_false
 
 soccer$end.location <- ifelse(true_false, soccer$shot.end_location, soccer$pass.end_location)
 
-View(head(passes_and_shots, n = 40L))
 
 soccer$end.x.location <- 1:nrow(soccer)
 soccer$end.y.location <- 1:nrow(soccer)
@@ -118,13 +165,14 @@ for (i in 1:nrow(soccer)) {
 
 (View(head(soccer)))
 
+summary(soccer$x.location)
 
 # --------------------------------------------------------------------------------------------------------------------------------
 # Write to Final File.  
 # --------------------------------------------------------------------------------------------------------------------------------
 
+write.csv(soccer %>% select(-c(location,pass.end_location,shot.end_location,end.location)), file = "soccer_new.csv")
 
-write.csv(soccer %>% select(-c(location,pass.end_location,shot.end_location,end.location)), file = "soccer.csv")
 
 
 
