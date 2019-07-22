@@ -107,14 +107,15 @@ df.adjusted$shot.statsbomb_xg <- ifelse(df.adjusted$shot.chain.length == 1 & df.
                                         ,-1*df.adjusted$shot.statsbomb_nxg, df.adjusted$shot.statsbomb_xg)
 
 
+
 # --------------------------------------------------------------------------------------------------------------------------------
-# Select Desired Variables and write to a new file. 
+# Select Desired Variables and create a new data frame. 
 # --------------------------------------------------------------------------------------------------------------------------------
 
 library(tidyverse)
 
 #name to a new file named soccer. 
-df.adjusted %>% select(match, possession, type.name, shot.statsbomb_xg, possession_team.name,position.name,player.name, 
+df.adjusted %>% select(match, possession, team.name, type.name, shot.statsbomb_xg, possession_team.name,position.name,player.name, 
                        pass.recipient.name, pass.outcome.name, pass.angle, pass.length, pass.switch,
                         pass.cross, duration, minute,second,position.name,pass.height.name, 
                         pass.body_part.name,pass.type.name,location,length,pass.end_location,shot.end_location) -> soccer
@@ -158,20 +159,64 @@ for (i in 1:nrow(soccer)) {
 }
 
 
-
 # --------------------------------------------------------------------------------------------------------------------------------
-# Give negative expected Goals for passes that lead to change in possession (in opponents' end.)
+# Add degree centrality and pagerank to data. 
 # --------------------------------------------------------------------------------------------------------------------------------
 
-(View(head(soccer)))
+### Make player name and pass recipient names identical to those in pagerank/centrality csv. 
 
-summary(soccer$x.location)
+#adapted from N-gram code
+strReplace<- function(s,pattern = " |-", replacement = "_")
+  
+{ return (str_replace_all(s,pattern,replacement))}
 
+#string functions 
+soccer %>% mutate(player.name = map(player.name, strReplace), pass.recipient.name = map(pass.recipient.name, strReplace)) -> soccer
+soccer %>% mutate(player.name = map(player.name, str_to_lower), pass.recipient.name = map(pass.recipient.name, str_to_lower)) -> soccer
+
+#read-in rates (file can be obtained by running through 'EDA- Bigrams' code)
+weights <- read.csv("https://raw.githubusercontent.com/KapilKhanal/Soccer/master/Player_with_weights_per_match.csv")
+
+##PASS ORIGIN
+
+#rename column to prepare for join.
+weights %>% rename(player.name = label) -> weights
+
+#preparing for join further 
+weights$player.name <- as.character(unlist(weights$player.name))
+soccer$player.name <- as.character(unlist(soccer$player.name))
+soccer$pass.recipient.name <- as.character(unlist(soccer$pass.recipient.name))
+within(weights, rm(id, X)) -> weights
+
+
+#perform left join 
+soccer <- left_join(soccer, weights)
+#rename to prepare for pass end join
+soccer %>% rename(centrality_Origin = centrality, pageRank_Origin = pageRank) -> soccer
+
+
+##PASS END
+weights %>% rename(pass.recipient.name = player.name) -> weights
+soccer <- left_join(soccer, weights)
+soccer %>% rename(centrality_End = centrality, pageRank_End = pageRank) -> soccer
+
+#Make NAs 0 for modeling
+soccer$centrality_Origin <-ifelse(is.na(soccer$centrality_Origin), 0, soccer$centrality_Origin)
+soccer$centrality_End <- ifelse(is.na(soccer$centrality_End), 0, soccer$centrality_End)
+soccer$pageRank_Origin <- ifelse(is.na(soccer$pageRank_Origin), 0, soccer$pageRank_Origin)
+soccer$pageRank_End <- ifelse(is.na(soccer$pageRank_End), 0, soccer$pageRank_End)
+
+
+str(weights)
+str(soccer)
+View(soccer)
 # --------------------------------------------------------------------------------------------------------------------------------
 # Write to Final File.  
 # --------------------------------------------------------------------------------------------------------------------------------
 
 write.csv(soccer %>% select(-c(location,pass.end_location,shot.end_location,end.location)), file = "soccer_new.csv")
+
+write.csv(soccer, file = "WomenSoccer2.csv")
 
 
 
