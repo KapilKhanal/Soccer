@@ -210,6 +210,41 @@ soccer$pageRank_End <- ifelse(is.na(soccer$pageRank_End), 0, soccer$pageRank_End
 str(weights)
 str(soccer)
 View(soccer)
+
+
+# --------------------------------------------------------------------------------------------------------------------------------
+# Add close to shot column
+# --------------------------------------------------------------------------------------------------------------------------------
+
+close.to.shot <- function(df, INTERVAL = 15) {
+    
+    df %>% mutate(time = (60 * minute) + second) -> df
+    
+    lastShotTime <- 99999999
+    current.match <- df$match[nrow(df)]
+    current.pos <- df$possession[nrow(df)]
+    
+    for (ii in nrow(df):1) {
+        if (df$type.name[ii] == "Shot") {
+            lastShotTime <- df$time[ii]
+            current.match <- df$match[ii]
+            current.pos <- df$possession[ii]
+            df$close_to_shot[ii] <- 1
+        } else if (lastShotTime - df$time[ii] <= INTERVAL &&
+        df$match[ii] == current.match &&
+        df$possession[ii] == current.pos) {
+            df$close_to_shot[ii] <- 1
+        } else {
+            df$close_to_shot[ii] <- 0
+        }
+    }
+    
+    return(df)
+}
+
+soccer <- close.to.shot(soccer)
+
+
 # --------------------------------------------------------------------------------------------------------------------------------
 # Write to Final File.  
 # --------------------------------------------------------------------------------------------------------------------------------
