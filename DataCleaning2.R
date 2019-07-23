@@ -69,9 +69,14 @@ View(head(passes_and_shots, 100))
 #run for entire dataset. 
 df.adjusted <- f(passes_and_shots)
 # --------------------------------------------------------------------------------------------------------------------------------
-# Give the negative of the shot chain expected goals to passes which lead to a shot within 3 events.
+# Give the negative of the shot chain expected goals to passes.
 # --------------------------------------------------------------------------------------------------------------------------------
+df.adjusted$shot.statsbomb_xg[nrow(df.adjusted)]
+df.adjusted$possession[nrow(df.adjusted)]
 
+## WITHIN THREE EVENTS
+
+View(head(df.adjusted, 40))
 #order of possession which will be useful later
 df.adjusted %>% group_by(possession,match) %>% mutate(chain.length = seq(1:n())) -> df.adjusted
 #lead the chain length to start the order the event before possession change
@@ -97,7 +102,7 @@ df.adjusted$lead.chain.length = ifelse(df.adjusted$shot.chain.length == 1 |df.ad
 #lead expected goals column this way xG of next shot will be on pass before change
 df.adjusted$shot.statsbomb_nxg <- lead(df.adjusted$shot.statsbomb_xg, 1)
 
-#lead pass.type.name         this way pass type of next pass will be on pass before change
+#lead pass.type.name this way pass type of next pass will be on pass before change
 df.adjusted$lead_pass.type.name <- lead(df.adjusted$pass.type.name, 1)
 
 #if a pass and the pass chain length var is less than 4 (3 events in chain):
@@ -105,6 +110,36 @@ df.adjusted$lead_pass.type.name <- lead(df.adjusted$pass.type.name, 1)
 df.adjusted$shot.statsbomb_xg <- ifelse(df.adjusted$shot.chain.length == 1 & df.adjusted$lead.chain.length <= 4 &
                                         !(df.adjusted$pass.type.name %in% c("Kick Off"))
                                         ,-1*df.adjusted$shot.statsbomb_nxg, df.adjusted$shot.statsbomb_xg)
+
+View(head(df.adjusted,40))
+
+## ENTIRE SEQUENCE PRECEDING A SEQUENCE WITH A SHOT. (with three events code)
+
+#define a temporary xG column constructed similarly to the original xG column created for 3 event code.
+df.adjusted$shot.statsbomb_txg <- ifelse(df.adjusted$shot.chain.length == 1 & df.adjusted$lead.chain.length <= 4 &
+                                          !(df.adjusted$pass.type.name %in% c("Kick Off"))
+                                        ,-1*df.adjusted$shot.statsbomb_nxg, df.adjusted$shot.statsbomb_xg)
+
+#make all non negatives in this column zero.
+df.adjusted$shot.statsbomb_txg <- ifelse(df.adjusted$shot.statsbomb_txg <0, df.adjusted$shot.statsbomb_txg, 0)
+
+#end possession xG Function
+
+endPossXG <- function(df) {
+  
+  lastRow = df[nrow(df), ]$shot.statsbomb_txg
+  df$ExpectedGoal = lastRow
+  return(df)
+}
+
+df.adjusted <- df.adjusted %>% group_by(match,possession) %>% nest() %>%
+  mutate(goal = purrr:: map(data, endPossXG)) %>% unnest()
+
+View(head(df.adjusted,40))
+
+
+#combine negative and positives into final column.
+df.adjusted$ExpectedGoal<- ifelse(df.adjusted$shot.statsbomb_xg > 0, df.adjusted$shot.statsbomb_xg, df.adjusted$ExpectedGoal)
 
 
 
@@ -115,7 +150,7 @@ df.adjusted$shot.statsbomb_xg <- ifelse(df.adjusted$shot.chain.length == 1 & df.
 library(tidyverse)
 
 #name to a new file named soccer. 
-df.adjusted %>% select(match, possession, team.name, type.name, shot.statsbomb_xg, possession_team.name,position.name,player.name, 
+df.adjusted %>% select(match, possession, team.name, type.name, ExpectedGoal, possession_team.name,position.name,player.name, 
                        pass.recipient.name, pass.outcome.name, pass.angle, pass.length, pass.switch,
                         pass.cross, duration, minute,second,position.name,pass.height.name, 
                         pass.body_part.name,pass.type.name,location,length,pass.end_location,shot.end_location) -> soccer
@@ -188,7 +223,7 @@ soccer$player.name <- as.character(unlist(soccer$player.name))
 soccer$pass.recipient.name <- as.character(unlist(soccer$pass.recipient.name))
 within(weights, rm(id, X)) -> weights
 
-
+View(head(soccer,40))
 #perform left join 
 soccer <- left_join(soccer, weights)
 #rename to prepare for pass end join
@@ -199,7 +234,7 @@ soccer %>% rename(centrality_Origin = centrality, pageRank_Origin = pageRank) ->
 weights %>% rename(pass.recipient.name = player.name) -> weights
 soccer <- left_join(soccer, weights)
 soccer %>% rename(centrality_End = centrality, pageRank_End = pageRank) -> soccer
-
+soccer
 #Make NAs 0 for modeling
 soccer$centrality_Origin <-ifelse(is.na(soccer$centrality_Origin), 0, soccer$centrality_Origin)
 soccer$centrality_End <- ifelse(is.na(soccer$centrality_End), 0, soccer$centrality_End)
@@ -217,30 +252,32 @@ View(soccer)
 # --------------------------------------------------------------------------------------------------------------------------------
 
 close.to.shot <- function(df, INTERVAL = 15) {
-    
-    df %>% mutate(time = (60 * minute) + second) -> df
-    
-    lastShotTime <- 99999999
-    current.match <- df$match[nrow(df)]
-    current.pos <- df$possession[nrow(df)]
-    
-    for (ii in nrow(df):1) {
-        if (df$type.name[ii] == "Shot") {
-            lastShotTime <- df$time[ii]
-            current.match <- df$match[ii]
-            current.pos <- df$possession[ii]
-            df$close_to_shot[ii] <- 1
-        } else if (lastShotTime - df$time[ii] <= INTERVAL &&
-        df$match[ii] == current.match &&
-        df$possession[ii] == current.pos) {
-            df$close_to_shot[ii] <- 1
-        } else {
-            df$close_to_shot[ii] <- 0
-        }
+  
+  df %>% mutate(time = (60 * minute) + second) -> df
+  
+  lastShotTime <- 99999999
+  current.match <- df$match[nrow(df)]
+  current.pos <- df$possession[nrow(df)]
+  
+  for (ii in nrow(df):1) {
+    if (df$type.name[ii] == "Shot") {
+      lastShotTime <- df$time[ii]
+      current.match <- df$match[ii]
+      current.pos <- df$possession[ii]
+      df$close_to_shot[ii] <- 1
+    } else if (lastShotTime - df$time[ii] <= INTERVAL &&
+               df$match[ii] == current.match &&
+               df$possession[ii] == current.pos) {
+      df$close_to_shot[ii] <- 1
+    } else {
+      df$close_to_shot[ii] <- 0
     }
-    
-    return(df)
+  }
+  
+  return(df)
 }
+
+soccer$close_to_shot <- 1:nrow(soccer)
 
 soccer <- close.to.shot(soccer)
 
@@ -249,16 +286,29 @@ soccer <- close.to.shot(soccer)
 # Write to Final File.  
 # --------------------------------------------------------------------------------------------------------------------------------
 
-write.csv(soccer %>% select(-c(location,pass.end_location,shot.end_location,end.location)), file = "soccer_new.csv")
-
-write.csv(soccer, file = "WomenSoccer2.csv")
+write.csv(soccer %>% select(-c(location,pass.end_location,shot.end_location,end.location, time)), file = "WomenSoccer3.csv")
 
 
+------------------------------------------------------------------------------
+# Split data
+------------------------------------------------------------------------------
+df <- soccer
 
+train_perc <- 0.8
 
+set.seed(25644)
+values <- sample(1:nrow(df), train_perc * nrow(df), replace = FALSE)
 
+train <- df[values,]
+test <- df[-values,]
 
+View(head(train))
 
+# -----------------------------------------------------------------------------
+# Write results
+# -----------------------------------------------------------------------------
+write_csv(train, "train3-1.csv")
+write_csv(test, "test3-2.csv")
 
 
 
