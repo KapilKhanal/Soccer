@@ -2,11 +2,11 @@
 This code repo is for collaboration with my project partners [Jeremy, Nathan]. The code is not complete and will be orzanized properly in future..for now it's just for sharing files
 
 Final Script Files
-1: ReadDataScript
-2:Data Cleaning 2
-3: GAM Modeling
-4:Centralitymeasures
-5:JoiningCentrality
+1: ReadDataScript <br>
+2:Data Cleaning 2 <br>
+3: GAM Modeling <br>
+4:Centralitymeasures <br>
+5:JoiningCentrality <br>
 ## Terms & Conditions
 
 By using this repository, you are agreeing to the [user agreement](LICENSE.pdf).
